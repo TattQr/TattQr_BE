@@ -72,7 +72,7 @@ const createContent = async (req, res) => {
 
       contentUrl = `/uploads/${req.file.filename}`;
     } else if (contentType === "text") {
-      contentUrl = req.body.contentUrl ? req.body.contentUrl : null; // For text content, the URL can be directly provided
+      contentUrl = req.body.contentUrl ? req.body.contentUrl : null; 
     }
 
     // Create new content
@@ -80,7 +80,8 @@ const createContent = async (req, res) => {
       qrCode: qrId,
       contentType: contentType ? contentType : "text",
       contentUrl: contentUrl
-        ? `https://damonbe-production-ff33.up.railway.app${contentUrl}`
+        // ? `https://damonbe-production-ff33.up.railway.app${contentUrl}`
+        ? `http://localhost:5000${contentUrl}`
         : null,
       text: text ? text : "",
     });
