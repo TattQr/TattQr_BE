@@ -20,6 +20,10 @@ const UserSchema = new mongoose.Schema({
     ref: "QRCode",
     required: false,
   },
+  tag: {
+    type: String,
+    required: false,
+  },
 });
 
 const User = mongoose.model("User", UserSchema);

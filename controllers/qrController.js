@@ -19,6 +19,7 @@ const createQRCode = async (req, res) => {
     const text = req.body.text;
     const userId = req.user.id;
     const username = req.user.userName;
+    const tag = req.user.tag;
     const id = uuidv4();
 
     const filePath = path.join(__dirname, "../uploads", `${id}.png`);
@@ -36,14 +37,14 @@ const createQRCode = async (req, res) => {
     }
 
     // const qrCodeURLWithUserId = `${text}?uId=${userId}`;
-    const qrCodeURLWithUserId = `${text}?un=${username}`;
+    const qrCodeURLWithUserId = `${text}?un=${tag}`;
 
     // Save QR code metadata to the database
     const qrCode = new QRCodeModel({
       text: qrCodeURLWithUserId,
       filePath: filePath,
       // url: `https://damonbe-production-ff33.up.railway.app/uploads/${id}.png`,
-      url: `http://localhost:5000/uploads/${id}.png`,
+      url: `https://tattqrbe-production.up.railway.app/uploads/${id}.png`,
       user: userId,
       currentContent: null,
     });

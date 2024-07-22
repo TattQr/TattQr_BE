@@ -72,7 +72,7 @@ const createContent = async (req, res) => {
 
       contentUrl = `/uploads/${req.file.filename}`;
     } else if (contentType === "text") {
-      contentUrl = req.body.contentUrl ? req.body.contentUrl : null; 
+      contentUrl = req.body.contentUrl ? req.body.contentUrl : null;
     }
 
     // Create new content
@@ -80,8 +80,8 @@ const createContent = async (req, res) => {
       qrCode: qrId,
       contentType: contentType ? contentType : "text",
       contentUrl: contentUrl
-        // ? `https://damonbe-production-ff33.up.railway.app${contentUrl}`
-        ? `http://localhost:5000${contentUrl}`
+        ? // ? `https://damonbe-production-ff33.up.railway.app${contentUrl}`
+          `https://tattqrbe-production.up.railway.app/${contentUrl}`
         : null,
       text: text ? text : "",
     });
@@ -297,9 +297,7 @@ const getCurrentContentByQRCode = async (req, res) => {
       // const userObjId = new mongoose.Types.ObjectId(userId);
 
       // Find the QR code by user ID
-      const user = await UserModel.findOne({ username: userId }).populate(
-        "qrCode"
-      );
+      const user = await UserModel.findOne({ tag: userId }).populate("qrCode");
       console.log("user is", user);
       if (!user) {
         return res
