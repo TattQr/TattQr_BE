@@ -81,7 +81,7 @@ const createContent = async (req, res) => {
       contentType: contentType ? contentType : "text",
       contentUrl: contentUrl
         ? // ? `https://damonbe-production-ff33.up.railway.app${contentUrl}`
-          `https://tattqrbe-production.up.railway.app/${contentUrl}`
+          `https://tattqrbe-production.up.railway.app${contentUrl}`
         : null,
       text: text ? text : "",
     });
