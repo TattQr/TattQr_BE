@@ -19,7 +19,9 @@ const createContent = async (req, res) => {
     const qrCode = await QRCodeModel.findById(qrId);
 
     if (!qrCode) {
-      return res.status(404).send({ message: "QR Code not found" });
+      return res
+        .status(404)
+        .send({ message: "QR Code not found", status: 404 });
     }
 
     console.log("qr code is", qrCode);
@@ -123,7 +125,9 @@ const getContentsByQRCode = async (req, res) => {
       .exec();
 
     if (!qrCode) {
-      return res.status(404).send({ message: "QR Code not found" });
+      return res
+        .status(404)
+        .send({ message: "QR Code not found", status: 404 });
     }
 
     const historicalContents = await HistoricalContentModel.find({
@@ -160,7 +164,9 @@ const setCurrentContent = async (req, res) => {
     console.log("qrCode is", qrCode);
 
     if (!qrCode) {
-      return res.status(404).send({ message: "QR Code not found" });
+      return res
+        .status(404)
+        .send({ message: "QR Code not found", status: 404 });
     }
 
     // if (qrCode.user.toString() !== userId) {
@@ -224,7 +230,7 @@ const getContents = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching  contents", error);
-    res.status(500).send({ message: "Error fetching  contents" });
+    res.status(500).send({ message: "Error fetching  contents", status: 500 });
   }
 };
 
@@ -250,7 +256,9 @@ const getHistoricalContentsByQRCode = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching historical contents", error);
-    res.status(500).send({ message: "Error fetching historical contents" });
+    res
+      .status(500)
+      .send({ message: "Error fetching historical contents", status: 500 });
   }
 };
 
@@ -291,7 +299,10 @@ const getCurrentContentByQRCode = async (req, res) => {
       if (!userId) {
         return res
           .status(400)
-          .send({ message: "QR Code ID or User ID must be provided" });
+          .send({
+            message: "QR Code ID or User ID must be provided",
+            status: 400,
+          });
       }
 
       // const userObjId = new mongoose.Types.ObjectId(userId);
@@ -316,11 +327,15 @@ const getCurrentContentByQRCode = async (req, res) => {
       qrCode = await QRCodeModel.findById(qrId).populate("currentContent");
     }
     if (!qrCode) {
-      return res.status(404).send({ message: "QR Code not found" });
+      return res
+        .status(404)
+        .send({ message: "QR Code not found", status: 400 });
     }
 
     if (!qrCode.currentContent) {
-      return res.status(404).send({ message: "No current content found" });
+      return res
+        .status(404)
+        .send({ message: "No current content found", status: 400 });
     }
 
     res.status(200).send({
