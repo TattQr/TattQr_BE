@@ -14,9 +14,19 @@ const getNextTag = async () => {
 exports.signup = async (req, res) => {
   const { username, email, password } = req.body;
   try {
+    const lowerCaseUsername = username.toLowerCase();
+    const existingUser = await User.findOne({ username: lowerCaseUsername });
+    if (existingUser) {
+      return res.status(400).send({ message: "Username already exists" });
+    }
     const hashedPassword = await bcrypt.hash(password, 10);
     const tag = await getNextTag();
-    const user = new User({ username, email, password: hashedPassword, tag });
+    const user = new User({
+      username: lowerCaseUsername,
+      email,
+      password: hashedPassword,
+      tag,
+    });
     await user.save();
     // const token = jwt.sign({ id: user._id }, "tattqr", {
     //   expiresIn: "24h",
@@ -31,7 +41,8 @@ exports.signup = async (req, res) => {
 exports.login = async (req, res) => {
   const { username, password } = req.body;
   try {
-    const user = await User.findOne({ username });
+    const lowerCaseUsername = username.toLowerCase();
+    const user = await User.findOne({ username: lowerCaseUsername });
     if (!user) {
       return res.status(404).send({ message: "User not found" });
     }

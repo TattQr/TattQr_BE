@@ -7,7 +7,7 @@ const path = require("path");
 
 const createContent = async (req, res) => {
   try {
-    const { qrCodeId, contentType: reqContentType, text } = req.query; // Receive JSON data from URL params or query params
+    const { qrCodeId, contentType: reqContentType, text, label } = req.query; // Receive JSON data from URL params or query params
 
     const userId = req.user.id;
     console.log("ser id is", userId);
@@ -86,6 +86,7 @@ const createContent = async (req, res) => {
           `https://tattqrbe-production.up.railway.app${contentUrl}`
         : null,
       text: text ? text : "",
+      label: label ? label : "",
     });
 
     await newContent.save();
@@ -98,6 +99,7 @@ const createContent = async (req, res) => {
         qrCode: qrCodeId,
         contentType: currentContent.contentType,
         contentUrl: currentContent.contentUrl,
+        label: currentContent.label,
       });
 
       await historicalContent.save();
@@ -297,12 +299,10 @@ const getCurrentContentByQRCode = async (req, res) => {
       console.log("req.params is", req.params);
 
       if (!userId) {
-        return res
-          .status(400)
-          .send({
-            message: "QR Code ID or User ID must be provided",
-            status: 400,
-          });
+        return res.status(400).send({
+          message: "QR Code ID or User ID must be provided",
+          status: 400,
+        });
       }
 
       // const userObjId = new mongoose.Types.ObjectId(userId);
@@ -375,6 +375,46 @@ const getAllContentsByQRCode = async (req, res) => {
   }
 };
 
+const deleteContent = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const contentId = new mongoose.Types.ObjectId(id);
+
+    const content = await ContentModel.findById(contentId);
+    if (!content) {
+      return res
+        .status(404)
+        .send({ message: "Content not found", status: 404 });
+    }
+
+    const qrCode = await QRCodeModel.findById(content.qrCode);
+    // if (!qrCode || qrCode.user.toString() !== userId) {
+    //   return res.status(403).send({
+    //     message: "You are not authorized to delete this content",
+    //     status: 403,
+    //   });
+    // }
+
+    if (qrCode.currentContent.toString() === id) {
+      // qrCode.currentContent = null;
+      // await qrCode.save();
+      return res.status(400).send({
+        message: "Cannot delete the current content update it first",
+        status: 400,
+      });
+    } else {
+      await ContentModel.findByIdAndDelete(contentId);
+    }
+
+    res
+      .status(200)
+      .send({ message: "Content deleted successfully", status: 200 });
+  } catch (error) {
+    res.status(500).send({ message: error.message, status: 500 });
+  }
+};
+
 module.exports = {
   getContents,
   createContent,
@@ -383,4 +423,5 @@ module.exports = {
   getHistoricalContentsByQRCode,
   getCurrentContentByQRCode,
   getAllContentsByQRCode,
+  deleteContent,
 };

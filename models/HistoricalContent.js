@@ -15,6 +15,9 @@ const HistoricalContentSchema = new mongoose.Schema({
   contentUrl: {
     type: String,
   },
+  label: {
+    type: String,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

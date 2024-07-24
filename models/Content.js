@@ -17,6 +17,9 @@ const ContentSchema = new mongoose.Schema({
   text: {
     type: String,
   },
+  label: {
+    type: String,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

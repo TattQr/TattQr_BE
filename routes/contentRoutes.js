@@ -38,4 +38,6 @@ router.get(
   contentController.getCurrentContentByQRCode
 );
 
+router.delete("/delete/:id", authenticate, contentController.deleteContent);
+
 module.exports = router;

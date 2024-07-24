@@ -43,7 +43,7 @@ const createQRCode = async (req, res) => {
     const qrCode = new QRCodeModel({
       text: qrCodeURLWithUserId,
       filePath: filePath,
-      // url: `https://damonbe-production-ff33.up.railway.app/uploads/${id}.png`,
+      // url: `http://localhost:5000/uploads/${id}.png`,
       url: `https://tattqrbe-production.up.railway.app/uploads/${id}.png`,
       user: userId,
       currentContent: null,
