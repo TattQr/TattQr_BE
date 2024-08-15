@@ -1,4 +1,4 @@
 module.exports = {
   MONGO_URI:
-    "mongodb+srv://tattqr:C4Pxk6IGgKysXHGx@tattqrcluster.rwplgii.mongodb.net/TattQr",
+    "mongodb+srv://tattqr:RzmJM0BXrr4rhph9@tattqrcluster.rwplgii.mongodb.net/TattQr",
 };
