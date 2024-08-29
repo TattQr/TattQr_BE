@@ -48,6 +48,7 @@ const authenticate = async (req, res, next) => {
       tag: user.tag,
       email: user.email,
       qrCode: user.qrCode,
+      role: user.role,
     };
     // console.log("req.user is", req.user);
     next();
