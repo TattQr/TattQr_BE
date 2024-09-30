@@ -7,7 +7,7 @@ const path = require("path");
 
 const createContent = async (req, res) => {
   try {
-    const { qrCodeId, contentType: reqContentType, text, label } = req.query; // Receive JSON data from URL params or query params
+    const { qrCodeId, contentType: reqContentType, text, label, category } = req.query; // Receive JSON data from URL params or query params
 
     const userId = req.user.id;
     console.log("ser id is", userId);
@@ -87,6 +87,7 @@ const createContent = async (req, res) => {
         : null,
       text: text ? text : "",
       label: label ? label : "",
+      category: category ? category : "",
     });
 
     await newContent.save();
