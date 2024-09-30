@@ -38,7 +38,7 @@ router.get(
   adminController.getAllQRCodes
 );
 router.delete(
-  "/qrcodes/:id",
+  "/qrcodes",
   authenticate,
   verifyRole(["admin"]),
   adminController.deleteQRCode
@@ -52,5 +52,15 @@ router.get(
   adminController.getAppStatistics
 );
 // router.get("/logs", verifyRole(["admin"]), adminController.getLogs);
+router.get(
+  "/allcontents",
+  authenticate,
+  verifyRole(["admin"]),
+  adminController.getAllContentsWithUsers
+);
+// router.get("/all-contents",
+//   authenticate,
+//   verifyRole(["admin"]),
+//   adminController.getAllContentsWithUsers);
 
 module.exports = router;

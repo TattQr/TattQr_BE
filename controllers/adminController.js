@@ -1,6 +1,7 @@
 const User = require("../models/Users");
 const QRCode = require("../models/QRCode");
 const { default: mongoose } = require("mongoose");
+const { HistoricalContentModel, ContentModel } = require("../models/Index");
 
 // View a list of users
 exports.getAllUsers = async (req, res) => {
@@ -81,7 +82,8 @@ exports.deleteUser = async (req, res) => {
 exports.getAllQRCodes = async (req, res) => {
   try {
     const qrCodes = await QRCode.find();
-    res.status(200).json(qrCodes);
+    console.log(qrCodes,"--------------------allqr");
+    res.status(200).json({data:qrCodes,message:"QR Codes retrieved successfully"});
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -90,7 +92,7 @@ exports.getAllQRCodes = async (req, res) => {
 // Delete a QR codes
 exports.deleteQRCode = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id } = req.query;
     await QRCode.findByIdAndDelete(id);
     res.status(200).json({ message: "QR Code deleted successfully" });
   } catch (error) {
@@ -103,12 +105,53 @@ exports.getAppStatistics = async (req, res) => {
   try {
     const userCount = await User.countDocuments();
     const qrCodeCount = await QRCode.countDocuments();
+    const contentCount = await ContentModel.countDocuments();
 
     res.status(200).json({
       userCount,
       qrCodeCount,
+      contentCount
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getAllContentsWithUsers = async (req, res) => {
+  try {
+    // Fetch all content along with user data
+    const contents = await ContentModel.find()
+      .populate({
+        path: "qrCode",
+        populate: {
+          path: "user",
+          model: "User",
+          select: "username email",
+        },
+      })
+      .exec();
+
+    // Fetch all historical content along with user data
+    const historicalContents = await HistoricalContentModel.find()
+      .populate({
+        path: "qrCode",
+        populate: {
+          path: "user",
+          model: "User",
+          select: "username email",
+        },
+      })
+      .exec();
+
+    res.status(200).json({
+      success: true,
+      data: {
+        contents,
+        historicalContents,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching contents: ", error);
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };
