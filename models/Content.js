@@ -23,6 +23,22 @@ const ContentSchema = new mongoose.Schema({
   category: {
     type: String,
   },
+  type: {
+    type: String,
+    enum: ['temporary', 'permanent'],
+    required: true
+  },
+  expiryTime: { 
+    type: Date,
+    default: null
+  },
+  isSecure: {
+    type: Boolean,
+    default: false
+  },
+  pin: {
+    type: String
+  },
   createdAt: {
     type: Date,
     default: Date.now,
