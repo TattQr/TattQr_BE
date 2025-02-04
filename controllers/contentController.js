@@ -99,7 +99,7 @@ console.log("req.query is", req.query);
       contentType: contentType ? contentType : "text",
       contentUrl: contentUrl
         ? `https://tattqrbe-production.up.railway.app${contentUrl}`
-          // `http://localhost:5000${contentUrl}`
+          // `http://localhost:5000${contentUrl}` 
         : null,
       text: text ? text : "",
       label: label ? label : "",
