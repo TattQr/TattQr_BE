@@ -3,6 +3,7 @@ const router = express.Router();
 const contentController = require("../controllers/contentController");
 const upload = require("../middlewares/multer");
 const { authenticate } = require("../middlewares/authMiddleware");
+const { checkContentAccess } = require("../middlewares/checkContentAccess");
 
 // router.get("/contents/:qrCodeId", authenticate, contentController.getContents);
 router.post("/set/:id", authenticate, contentController.setCurrentContent);
@@ -30,11 +31,13 @@ router.get(
 router.get(
   "/current-content/qr/:qrCodeId",
   authenticate,
+  checkContentAccess,
   contentController.getCurrentContentByQRCode
 );
 
 router.get(
   "/current-content/user/:userId",
+  checkContentAccess,
   contentController.getCurrentContentByQRCode
 );
 
