@@ -7,7 +7,9 @@ const path = require("path");
 
 const createContent = async (req, res) => {
   try {
-    const { qrCodeId, contentType: reqContentType, text, label, category } = req.query; // Receive JSON data from URL params or query params
+    const { qrCodeId, contentType: reqContentType, text, label, category, type, contentDuration, isTemporary, isSecure, pin } = req.query; // Receive JSON data from URL params or query params
+    
+console.log("req.query is", req.query);
 
     const userId = req.user.id;
     console.log("ser id is", userId);
@@ -76,18 +78,36 @@ const createContent = async (req, res) => {
     } else if (contentType === "text") {
       contentUrl = req.body.contentUrl ? req.body.contentUrl : null;
     }
+    
+    let expiryTime = null;
+    if (isTemporary === 'true') {
+      console.log("istemp is true");
+      
+      if (contentDuration > 0) {
+        expiryTime = new Date(Date.now() + contentDuration * 60000);
+      } else {
+        throw new Error("Invalid contentDuration provided for temporary content");
+      }
+    }
+    console.log("isTemporary:", isTemporary);
+    console.log("contentDuration:", contentDuration);
+    console.log("expiryTime:", expiryTime);
 
     // Create new content
     const newContent = new ContentModel({
       qrCode: qrId,
       contentType: contentType ? contentType : "text",
       contentUrl: contentUrl
-        ? // ? `https://damonbe-production-ff33.up.railway.app${contentUrl}`
-          `https://tattqrbe-production.up.railway.app${contentUrl}`
+        ? `https://tattqrbe-production.up.railway.app${contentUrl}`
+          // `http://localhost:5000${contentUrl}`
         : null,
       text: text ? text : "",
       label: label ? label : "",
       category: category ? category : "",
+      type: isTemporary === 'true' ? 'temporary' : 'permanent',
+      expiryTime,
+      isSecure,
+      pin: isSecure ? pin : null,
     });
 
     await newContent.save();
@@ -265,19 +285,54 @@ const getHistoricalContentsByQRCode = async (req, res) => {
   }
 };
 
+
 // const getCurrentContentByQRCode = async (req, res) => {
 //   try {
-//     const { qrCodeId } = req.params;
-//     const qrId = new mongoose.Types.ObjectId(qrCodeId);
+//     let qrCodeId = req.params.qrCodeId;
+//     let qrCode;
 
-//     // Find the QR code by ID and populate the current content
-//     const qrCode = await QRCodeModel.findById(qrId).populate("currentContent");
+//     if (!qrCodeId) {
+//       const { userId } = req.params;
+//       console.log("req.params is", req.params);
+
+//       if (!userId) {
+//         return res.status(400).send({
+//           message: "QR Code ID or User ID must be provided",
+//           status: 400,
+//         });
+//       }
+
+//       // const userObjId = new mongoose.Types.ObjectId(userId);
+
+//       // Find the QR code by user ID
+//       const user = await UserModel.findOne({ tag: userId }).populate("qrCode");
+//       console.log("user is", user);
+//       if (!user) {
+//         return res
+//           .status(404)
+//           .send({ message: "QR Code not found for this user" });
+//       }
+
+//       qrCodeId = user._id;
+//       // Find the QR code by ID and populate the current content
+//       qrCode = await QRCodeModel.findOne({ user: qrCodeId }).populate(
+//         "currentContent"
+//       );
+//     } else {
+//       const qrId = new mongoose.Types.ObjectId(qrCodeId);
+//       // Find the QR code by ID and populate the current content
+//       qrCode = await QRCodeModel.findById(qrId).populate("currentContent");
+//     }
 //     if (!qrCode) {
-//       return res.status(404).send({ message: "QR Code not found" });
+//       return res
+//         .status(404)
+//         .send({ message: "QR Code not found", status: 400 });
 //     }
 
 //     if (!qrCode.currentContent) {
-//       return res.status(404).send({ message: "No current content found" });
+//       return res
+//         .status(404)
+//         .send({ message: "No current content found", status: 400 });
 //     }
 
 //     res.status(200).send({
@@ -290,64 +345,32 @@ const getHistoricalContentsByQRCode = async (req, res) => {
 //   }
 // };
 
+
 const getCurrentContentByQRCode = async (req, res) => {
   try {
-    let qrCodeId = req.params.qrCodeId;
-    let qrCode;
+    // The middleware already populated `req.content`
+    const content = req.content;
+    console.log("req.content is", content);
+    
 
-    if (!qrCodeId) {
-      const { userId } = req.params;
-      console.log("req.params is", req.params);
-
-      if (!userId) {
-        return res.status(400).send({
-          message: "QR Code ID or User ID must be provided",
-          status: 400,
-        });
-      }
-
-      // const userObjId = new mongoose.Types.ObjectId(userId);
-
-      // Find the QR code by user ID
-      const user = await UserModel.findOne({ tag: userId }).populate("qrCode");
-      console.log("user is", user);
-      if (!user) {
-        return res
-          .status(404)
-          .send({ message: "QR Code not found for this user" });
-      }
-
-      qrCodeId = user._id;
-      // Find the QR code by ID and populate the current content
-      qrCode = await QRCodeModel.findOne({ user: qrCodeId }).populate(
-        "currentContent"
-      );
-    } else {
-      const qrId = new mongoose.Types.ObjectId(qrCodeId);
-      // Find the QR code by ID and populate the current content
-      qrCode = await QRCodeModel.findById(qrId).populate("currentContent");
-    }
-    if (!qrCode) {
-      return res
-        .status(404)
-        .send({ message: "QR Code not found", status: 400 });
+    if (!content) {
+      return res.status(404).send({
+        message: "No current content found",
+        status: 404,
+      });
     }
 
-    if (!qrCode.currentContent) {
-      return res
-        .status(404)
-        .send({ message: "No current content found", status: 400 });
-    }
-
+    // Return the fetched content
     res.status(200).send({
       message: "Current content fetched successfully",
-      currentContent: qrCode.currentContent,
+      currentContent: content,
     });
   } catch (error) {
     console.error("Error fetching current content", error);
     res.status(500).send({ message: "Error fetching current content" });
   }
 };
+
 
 const getAllContentsByQRCode = async (req, res) => {
   try {
