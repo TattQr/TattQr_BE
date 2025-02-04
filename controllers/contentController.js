@@ -98,8 +98,8 @@ console.log("req.query is", req.query);
       qrCode: qrId,
       contentType: contentType ? contentType : "text",
       contentUrl: contentUrl
-        ? // ? `https://damonbe-production-ff33.up.railway.app${contentUrl}`
-          `http://localhost:5000${contentUrl}`
+        ? `https://damonbe-production-ff33.up.railway.app${contentUrl}`
+          // `http://localhost:5000${contentUrl}`
         : null,
       text: text ? text : "",
       label: label ? label : "",
