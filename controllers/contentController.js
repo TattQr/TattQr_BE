@@ -74,7 +74,8 @@ console.log("req.query is", req.query);
         contentType = "file";
       }
 
-      contentUrl = `/uploads/${req.file.filename}`;
+      // contentUrl = `/uploads/${req.file.filename}`;
+      contentUrl = req.file.location; // S3 public URL
     } else if (contentType === "text") {
       contentUrl = req.body.contentUrl ? req.body.contentUrl : null;
     }
@@ -97,10 +98,11 @@ console.log("req.query is", req.query);
     const newContent = new ContentModel({
       qrCode: qrId,
       contentType: contentType ? contentType : "text",
-      contentUrl: contentUrl
-        ? `https://tattqrbe-production.up.railway.app${contentUrl}`
-          // `http://localhost:5000${contentUrl}` 
-        : null,
+      // contentUrl: contentUrl
+      //   ? `https://tattqrbe-production.up.railway.app${contentUrl}`
+      //     // `http://localhost:5000${contentUrl}` 
+      //   : null,
+      contentUrl: contentUrl || null,
       text: text ? text : "",
       label: label ? label : "",
       category: category ? category : "",
