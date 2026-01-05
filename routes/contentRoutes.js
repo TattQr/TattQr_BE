@@ -1,7 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const contentController = require("../controllers/contentController");
-const upload = require("../middlewares/multer");
+// const upload = require("../middlewares/multer");
+const upload = require("../middlewares/s3Uploader");
 const { authenticate } = require("../middlewares/authMiddleware");
 const { checkContentAccess } = require("../middlewares/checkContentAccess");
 

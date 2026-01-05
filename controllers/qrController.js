@@ -1,33 +1,81 @@
+// const { default: mongoose } = require("mongoose");
+// const QRCodeModel = require("../models/QRCode");
+// const fs = require("fs");
+// const path = require("path");
+// const QRCode = require("qrcode");
+// const { v4: uuidv4 } = require("uuid");
+
+// // Ensure the uploads directory exists
+// const ensureDirectoryExists = (directory) => {
+//   if (!fs.existsSync(directory)) {
+//     fs.mkdirSync(directory, { recursive: true });
+//   }
+// };
+// ensureDirectoryExists(path.join(__dirname, "../uploads"));
+
+// const createQRCode = async (req, res) => {
+//   try {
+//     console.log("req.user is", req.user);
+//     const text = req.body.text;
+//     const userId = req.user.id;
+//     const username = req.user.userName;
+//     const tag = req.user.tag;
+//     const id = uuidv4();
+
+//     const filePath = path.join(__dirname, "../uploads", `${id}.png`);
+//     // Generate the QR code and save it as a file1
+//     await QRCode.toFile(filePath, text);
+
+//     const userObjId = new mongoose.Types.ObjectId(userId);
+
+//     const findQr = await QRCodeModel.findOne({ user: userObjId });
+
+//     if (findQr) {
+//       return res
+//         .status(400)
+//         .send({ status: 400, message: "QR code already exists" });
+//     }
+
+//     // const qrCodeURLWithUserId = `${text}?uId=${userId}`;
+//     const qrCodeURLWithUserId = `${text}?un=${tag}`;
+
+//     // Save QR code metadata to the database
+//     const qrCode = new QRCodeModel({
+//       text: qrCodeURLWithUserId,
+//       filePath: filePath,
+//       // url: `http://localhost:5000/uploads/${id}.png`,
+//       url: `https://tattqrbe-production.up.railway.app/uploads/${id}.png`,
+//       user: userId,
+//       currentContent: null,
+//     });
+//     await qrCode.save();
+//     // const qrCodeURLWithUserId = `${qrCode.text}?userId=${userId}`;
+//     console.log("QR code created", qrCode);
+//     res.status(201).send({ qrCodeURL: qrCode.url, text: qrCode.text });
+//   } catch (error) {
+//     console.error("Error generating QR code", error);
+//     res.status(500).send({ message: error.message });
+//   }
+// };
+
 const { default: mongoose } = require("mongoose");
 const QRCodeModel = require("../models/QRCode");
-const fs = require("fs");
-const path = require("path");
 const QRCode = require("qrcode");
-const { v4: uuidv4 } = require("uuid");
-
-// Ensure the uploads directory exists
-const ensureDirectoryExists = (directory) => {
-  if (!fs.existsSync(directory)) {
-    fs.mkdirSync(directory, { recursive: true });
-  }
-};
-ensureDirectoryExists(path.join(__dirname, "../uploads"));
+// const { v4: uuidv4 } = require("uuid");
+const { randomUUID } = require("crypto");
+const { PutObjectCommand } = require("@aws-sdk/client-s3");
+const s3 = require("../config/s3");
 
 const createQRCode = async (req, res) => {
   try {
     console.log("req.user is", req.user);
     const text = req.body.text;
     const userId = req.user.id;
-    const username = req.user.userName;
     const tag = req.user.tag;
-    const id = uuidv4();
-
-    const filePath = path.join(__dirname, "../uploads", `${id}.png`);
-    // Generate the QR code and save it as a file1
-    await QRCode.toFile(filePath, text);
+    // const id = uuidv4();
+    const id = randomUUID();
 
     const userObjId = new mongoose.Types.ObjectId(userId);
-
     const findQr = await QRCodeModel.findOne({ user: userObjId });
 
     if (findQr) {
@@ -36,27 +84,45 @@ const createQRCode = async (req, res) => {
         .send({ status: 400, message: "QR code already exists" });
     }
 
-    // const qrCodeURLWithUserId = `${text}?uId=${userId}`;
+    // Build QR URL
     const qrCodeURLWithUserId = `${text}?un=${tag}`;
 
-    // Save QR code metadata to the database
+    // 1. Generate the QR Code image as a Buffer
+    const qrBuffer = await QRCode.toBuffer(qrCodeURLWithUserId);
+
+    // 2. Upload Buffer to S3
+    const s3Key = `qr-codes/${id}.png`;
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: process.env.AWS_BUCKET_NAME,
+        Key: s3Key,
+        Body: qrBuffer,
+        ContentType: "image/png",
+        ACL: "public-read",
+      })
+    );
+
+    // 3. Construct public S3 URL
+    const s3Url = `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}`;
+
+    // 4. Save QR metadata to MongoDB
     const qrCode = new QRCodeModel({
       text: qrCodeURLWithUserId,
-      filePath: filePath,
-      // url: `http://localhost:5000/uploads/${id}.png`,
-      url: `https://tattqrbe-production.up.railway.app/uploads/${id}.png`,
+      filePath: s3Key, // optional for reference
+      url: s3Url,
       user: userId,
       currentContent: null,
     });
+
     await qrCode.save();
-    // const qrCodeURLWithUserId = `${qrCode.text}?userId=${userId}`;
-    console.log("QR code created", qrCode);
-    res.status(201).send({ qrCodeURL: qrCode.url, text: qrCode.text });
+
+    res.status(201).send({ qrCodeURL: s3Url, text: qrCodeURLWithUserId });
   } catch (error) {
     console.error("Error generating QR code", error);
     res.status(500).send({ message: error.message });
   }
 };
+
 
 const getQRCode = async (req, res) => {
   try {
