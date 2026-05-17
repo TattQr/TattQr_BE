@@ -66,6 +66,36 @@ const { randomUUID } = require("crypto");
 const { PutObjectCommand } = require("@aws-sdk/client-s3");
 const s3 = require("../config/s3");
 
+const buildQrDestinationUrl = (rawText, tag) => {
+  if (!rawText || !String(rawText).trim()) {
+    throw new Error("QR destination URL is required");
+  }
+  if (!tag || !String(tag).trim()) {
+    throw new Error("User tag is required");
+  }
+
+  let candidate = String(rawText).trim();
+  if (!/^https?:\/\//i.test(candidate)) {
+    candidate = `https://${candidate}`;
+  }
+
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(candidate);
+  } catch (error) {
+    throw new Error("Invalid QR destination URL");
+  }
+
+  parsedUrl.pathname = parsedUrl.pathname.replace(/\/m\/?$/, "/");
+  if (!parsedUrl.pathname) {
+    parsedUrl.pathname = "/";
+  }
+  parsedUrl.hash = "";
+  parsedUrl.searchParams.set("un", String(tag).trim());
+
+  return parsedUrl.toString();
+};
+
 const createQRCode = async (req, res) => {
   try {
     console.log("req.user is", req.user);
@@ -84,8 +114,8 @@ const createQRCode = async (req, res) => {
         .send({ status: 400, message: "QR code already exists" });
     }
 
-    // Build QR URL
-    const qrCodeURLWithUserId = `${text}?un=${tag}`;
+    // Build QR URL with required scheme and `un` query param.
+    const qrCodeURLWithUserId = buildQrDestinationUrl(text, tag);
 
     // 1. Generate the QR Code image as a Buffer
     const qrBuffer = await QRCode.toBuffer(qrCodeURLWithUserId);
