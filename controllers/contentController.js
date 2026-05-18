@@ -5,140 +5,205 @@ const HistoricalContentModel = require("../models/HistoricalContent");
 const mongoose = require("mongoose");
 const path = require("path");
 
-const createContent = async (req, res) => {
-  try {
-    const { qrCodeId, contentType: reqContentType, text, label, category, type, contentDuration, isTemporary, isSecure, pin } = req.query; // Receive JSON data from URL params or query params
-    
-console.log("req.query is", req.query);
+const parseBoolean = (value) => {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    return normalized === "true" || normalized === "1";
+  }
+  return false;
+};
 
-    const userId = req.user.id;
-    console.log("ser id is", userId);
-    let contentType = reqContentType;
-    let contentUrl = null;
+const resolveContentTypeFromFile = (fileName = "") => {
+  const fileExtension = path.extname(fileName).toLowerCase();
+  if (
+    fileExtension === ".mp3" ||
+    fileExtension === ".wav" ||
+    fileExtension === ".m4a" ||
+    fileExtension === ".flac" ||
+    fileExtension === ".3gp" ||
+    fileExtension === ".aac" ||
+    fileExtension === ".wma"
+  ) {
+    return "audio";
+  }
+  if (
+    fileExtension === ".mp4" ||
+    fileExtension === ".avi" ||
+    fileExtension === ".mov" ||
+    fileExtension === ".wmv" ||
+    fileExtension === ".webm" ||
+    fileExtension === ".mkv" ||
+    fileExtension === ".flv"
+  ) {
+    return "video";
+  }
+  if (
+    [
+      ".png",
+      ".jpg",
+      ".jpeg",
+      ".gif",
+      ".svg",
+      ".apng",
+      ".avif",
+      ".webp",
+    ].includes(fileExtension)
+  ) {
+    return "image";
+  }
+  return "file";
+};
 
-    const qrId = new mongoose.Types.ObjectId(qrCodeId);
+const createContentEntry = async (req, { setAsCurrent = false } = {}) => {
+  const {
+    qrCodeId,
+    contentType: reqContentType,
+    text,
+    label,
+    category,
+    contentDuration,
+    isTemporary,
+    isSecure,
+    pin,
+  } = req.query;
 
-    const qrCode = await QRCodeModel.findById(qrId);
+  if (!qrCodeId || !mongoose.Types.ObjectId.isValid(qrCodeId)) {
+    return {
+      status: 400,
+      payload: { message: "Valid qrCodeId is required", status: 400 },
+    };
+  }
 
-    if (!qrCode) {
-      return res
-        .status(404)
-        .send({ message: "QR Code not found", status: 404 });
-    }
+  const qrId = new mongoose.Types.ObjectId(qrCodeId);
+  const qrCode = await QRCodeModel.findById(qrId);
+  if (!qrCode) {
+    return {
+      status: 404,
+      payload: { message: "QR Code not found", status: 404 },
+    };
+  }
 
-    console.log("qr code is", qrCode);
+  if (
+    qrCode.user &&
+    req.user?.id &&
+    qrCode.user.toString() !== req.user.id.toString()
+  ) {
+    return {
+      status: 403,
+      payload: { message: "You are not authorized for this QR Code", status: 403 },
+    };
+  }
 
-    // if (qrCode.user !== userId) {
-    //   return res
-    //     .status(403)
-    //     .send({ message: "You are not the owner of this QR Code" });
-    // }
+  const hasTextInput = typeof text === "string" && text.trim().length > 0;
+  if (!req.file && !hasTextInput) {
+    return {
+      status: 400,
+      payload: { message: "Either file or text is required", status: 400 },
+    };
+  }
 
-    // Handle file upload using multer
-    if (req.file) {
-      const fileExtension = path.extname(req.file.originalname).toLowerCase();
-      if (
-        fileExtension === ".mp3" ||
-        fileExtension === ".wav" ||
-        fileExtension === ".m4a" ||
-        fileExtension === ".flac" ||
-        fileExtension === ".3gp" ||
-        fileExtension === ".aac" ||
-        fileExtension === ".wma"
-      ) {
-        contentType = "audio";
-      } else if (
-        fileExtension === ".mp4" ||
-        fileExtension === ".avi" ||
-        fileExtension === ".mov" ||
-        fileExtension === ".wmv" ||
-        fileExtension === ".webm" ||
-        fileExtension === ".mkv" ||
-        fileExtension === ".flv"
-      ) {
-        contentType = "video";
-      } else if (
-        [
-          ".png",
-          ".jpg",
-          ".jpeg",
-          ".gif",
-          ".svg",
-          ".apng",
-          ".avif",
-          ".webp",
-        ].includes(fileExtension)
-      ) {
-        contentType = "image";
-      } else {
-        contentType = "file";
-      }
-
-      // contentUrl = `/uploads/${req.file.filename}`;
-      contentUrl = req.file.location; // S3 public URL
-    } else if (contentType === "text") {
+  let contentType = reqContentType;
+  let contentUrl = null;
+  if (req.file) {
+    contentType = resolveContentTypeFromFile(req.file.originalname);
+    contentUrl = req.file.location;
+  } else {
+    contentType = reqContentType || "text";
+    if (contentType === "text") {
       contentUrl = req.body.contentUrl ? req.body.contentUrl : null;
     }
-    
-    let expiryTime = null;
-    if (isTemporary === 'true') {
-      console.log("istemp is true");
-      
-      if (contentDuration > 0) {
-        expiryTime = new Date(Date.now() + contentDuration * 60000);
-      } else {
-        throw new Error("Invalid contentDuration provided for temporary content");
-      }
+  }
+
+  const temporaryContent = parseBoolean(isTemporary);
+  const secureContent = parseBoolean(isSecure);
+
+  let expiryTime = null;
+  if (temporaryContent) {
+    const durationMinutes = Number(contentDuration);
+    if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
+      return {
+        status: 400,
+        payload: {
+          message: "Invalid contentDuration provided for temporary content",
+          status: 400,
+        },
+      };
     }
-    console.log("isTemporary:", isTemporary);
-    console.log("contentDuration:", contentDuration);
-    console.log("expiryTime:", expiryTime);
+    expiryTime = new Date(Date.now() + durationMinutes * 60000);
+  }
 
-    // Create new content
-    const newContent = new ContentModel({
-      qrCode: qrId,
-      contentType: contentType ? contentType : "text",
-      // contentUrl: contentUrl
-      //   ? `https://tattqrbe-production.up.railway.app${contentUrl}`
-      //     // `http://localhost:5000${contentUrl}` 
-      //   : null,
-      contentUrl: contentUrl || null,
-      text: text ? text : "",
-      label: label ? label : "",
-      category: category ? category : "",
-      type: isTemporary === 'true' ? 'temporary' : 'permanent',
-      expiryTime,
-      isSecure,
-      pin: isSecure ? pin : null,
-    });
+  if (secureContent && (!pin || !String(pin).trim())) {
+    return {
+      status: 400,
+      payload: { message: "PIN is required for secure content", status: 400 },
+    };
+  }
 
-    await newContent.save();
+  const newContent = new ContentModel({
+    qrCode: qrId,
+    contentType: contentType ? contentType : "text",
+    contentUrl: contentUrl || null,
+    text: text ? text : "",
+    label: label ? label : "",
+    category: category ? category : "",
+    type: temporaryContent ? "temporary" : "permanent",
+    expiryTime,
+    isSecure: secureContent,
+    pin: secureContent ? String(pin).trim() : null,
+  });
 
-    // Move current content to historical if exists
+  await newContent.save();
+
+  if (setAsCurrent) {
     if (qrCode.currentContent) {
       const currentContent = await ContentModel.findById(qrCode.currentContent);
-
-      const historicalContent = new HistoricalContentModel({
-        qrCode: qrCodeId,
-        contentType: currentContent.contentType,
-        contentUrl: currentContent.contentUrl,
-        label: currentContent.label,
-      });
-
-      await historicalContent.save();
+      if (currentContent) {
+        const historicalContent = new HistoricalContentModel({
+          qrCode: qrCodeId,
+          contentType: currentContent.contentType,
+          contentUrl: currentContent.contentUrl,
+          label: currentContent.label,
+        });
+        await historicalContent.save();
+      }
     }
 
-    // Set new content as current content
     qrCode.currentContent = newContent._id;
-
     await qrCode.save();
+  }
 
-    res
-      .status(201)
-      .send({ message: "Content created and set as current", newContent });
+  return {
+    status: 201,
+    payload: {
+      message: setAsCurrent
+        ? "Content created and set as current"
+        : "Content added to gallery successfully",
+      newContent,
+      setAsCurrent,
+    },
+  };
+};
+
+const createContent = async (req, res) => {
+  try {
+    const result = await createContentEntry(req, { setAsCurrent: true });
+    return res.status(result.status).send(result.payload);
   } catch (error) {
     console.error("Error creating content", error);
     res.status(500).send({ message: error.message });
+  }
+};
+
+const addToGalleryContent = async (req, res) => {
+  try {
+    const result = await createContentEntry(req, { setAsCurrent: false });
+    return res.status(result.status).send(result.payload);
+  } catch (error) {
+    console.error("Error adding content to gallery", error);
+    return res.status(500).send({ message: error.message });
   }
 };
 
@@ -205,17 +270,25 @@ const setCurrentContent = async (req, res) => {
     if (!content) {
       return res.status(404).send({ message: "Content not found" });
     }
-
-    if (qrCode.currentContent && qrCode.currentContent.toString() !== conId) {
-      const currentContent = await ContentModel.findById(qrCode.currentContent);
-
-      const historicalContent = new HistoricalContentModel({
-        qrCode: qrCodeId,
-        contentType: currentContent.contentType,
-        contentUrl: currentContent.contentUrl,
+    if (content.qrCode.toString() !== qrCodeId.toString()) {
+      return res.status(400).send({
+        message: "Selected content does not belong to this QR code",
       });
+    }
 
-      await historicalContent.save();
+    if (
+      qrCode.currentContent &&
+      qrCode.currentContent.toString() !== conId.toString()
+    ) {
+      const currentContent = await ContentModel.findById(qrCode.currentContent);
+      if (currentContent) {
+        const historicalContent = new HistoricalContentModel({
+          qrCode: qrCodeId,
+          contentType: currentContent.contentType,
+          contentUrl: currentContent.contentUrl,
+        });
+        await historicalContent.save();
+      }
     }
 
     qrCode.currentContent = conId;
@@ -388,7 +461,9 @@ const getAllContentsByQRCode = async (req, res) => {
     }
 
     // Find all contents associated with the QR code
-    const contents = await ContentModel.find({ qrCode: qrId });
+    const contents = await ContentModel.find({ qrCode: qrId }).sort({
+      createdAt: -1,
+    });
 
     res.status(200).send({
       message: "Contents fetched successfully",
@@ -422,7 +497,7 @@ const deleteContent = async (req, res) => {
     //   });
     // }
 
-    if (qrCode.currentContent.toString() === id) {
+    if (qrCode.currentContent && qrCode.currentContent.toString() === id) {
       // qrCode.currentContent = null;
       // await qrCode.save();
       return res.status(400).send({
@@ -444,6 +519,7 @@ const deleteContent = async (req, res) => {
 module.exports = {
   getContents,
   createContent,
+  addToGalleryContent,
   getContentsByQRCode,
   setCurrentContent,
   getHistoricalContentsByQRCode,
