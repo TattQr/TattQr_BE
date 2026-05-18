@@ -16,6 +16,13 @@ router.post(
   contentController.createContent
 );
 
+router.post(
+  "/gallery",
+  authenticate,
+  upload.single("file"),
+  contentController.addToGalleryContent
+);
+
 router.get(
   "/content/:qrCodeId",
   authenticate,
