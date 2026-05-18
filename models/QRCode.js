@@ -52,6 +52,18 @@ const QRCodeSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "Content",
   },
+  totalScans: {
+    type: Number,
+    default: 0,
+  },
+  uniqueVisitors: {
+    type: Number,
+    default: 0,
+  },
+  lastScannedAt: {
+    type: Date,
+    default: null,
+  },
 });
 
 const QRCode = mongoose.model("QRCode", QRCodeSchema);

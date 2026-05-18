@@ -39,6 +39,18 @@ const ContentSchema = new mongoose.Schema({
   pin: {
     type: String
   },
+  scanCount: {
+    type: Number,
+    default: 0,
+  },
+  uniqueVisitorCount: {
+    type: Number,
+    default: 0,
+  },
+  lastScannedAt: {
+    type: Date,
+    default: null,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

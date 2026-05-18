@@ -107,6 +107,7 @@
 
 
 const { ContentModel, QRModel, UserModel } = require("../models/Index");
+const { trackScanEvent } = require("../utils/scanTracking");
 
 // const checkContentAccess = async (req, res, next) => {
 //   try {
@@ -231,6 +232,18 @@ const checkContentAccess = async (req, res, next) => {
 
     req.content = content; // Set the final content
     console.log("Final content assigned to req.content:", req.content);
+
+    if (req.params.userId) {
+      try {
+        await trackScanEvent({
+          qrCode,
+          content,
+          req,
+        });
+      } catch (trackingError) {
+        console.error("Failed to track scan event:", trackingError.message);
+      }
+    }
 
     next();
   } catch (error) {
