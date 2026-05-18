@@ -12,6 +12,26 @@ const UserSchema = new mongoose.Schema({
     required: true,
     // unique: true,
   },
+  phoneNum: {
+    type: String,
+    default: "",
+    trim: true,
+    maxlength: 20,
+  },
+  location: {
+    type: String,
+    default: "",
+    trim: true,
+    maxlength: 120,
+  },
+  profileImageUrl: {
+    type: String,
+    default: null,
+  },
+  profileImageKey: {
+    type: String,
+    default: null,
+  },
   password: {
     type: String,
     required: true,
