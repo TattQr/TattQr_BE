@@ -14,5 +14,6 @@ router.post(
 );
 router.get("/qrcode/:id", authenticate, qrController.getQRCode);
 router.get("/user/qr", authenticate, qrController.getUserQR);
+router.put("/user/qr", authenticate, qrController.updateUserQR);
 
 module.exports = router;
