@@ -50,5 +50,20 @@ router.get(
 );
 
 router.delete("/delete/:id", authenticate, contentController.deleteContent);
+router.get(
+  "/scans/summary",
+  authenticate,
+  contentController.getScanSummary
+);
+router.get(
+  "/scans/notifications",
+  authenticate,
+  contentController.getScanNotifications
+);
+router.post(
+  "/scans/notifications/read",
+  authenticate,
+  contentController.markScanNotificationsRead
+);
 
 module.exports = router;

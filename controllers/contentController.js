@@ -2,6 +2,7 @@ const QRCodeModel = require("../models/QRCode");
 const ContentModel = require("../models/Content");
 const UserModel = require("../models/Users");
 const HistoricalContentModel = require("../models/HistoricalContent");
+const ScanEventModel = require("../models/ScanEvent");
 const mongoose = require("mongoose");
 const path = require("path");
 
@@ -516,6 +517,144 @@ const deleteContent = async (req, res) => {
   }
 };
 
+const getScanSummary = async (req, res) => {
+  try {
+    const qrCode = await QRCodeModel.findOne({ user: req.user.id }).lean();
+    if (!qrCode) {
+      return res.status(200).send({
+        message: "Scan summary fetched successfully",
+        summary: {
+          totalScans: 0,
+          uniqueVisitors: 0,
+          lastScannedAt: null,
+          unreadNotifications: 0,
+        },
+      });
+    }
+
+    const unreadNotifications = await ScanEventModel.countDocuments({
+      ownerUser: req.user.id,
+      qrCode: qrCode._id,
+      isRead: false,
+    });
+
+    return res.status(200).send({
+      message: "Scan summary fetched successfully",
+      summary: {
+        totalScans: Number(qrCode.totalScans || 0),
+        uniqueVisitors: Number(qrCode.uniqueVisitors || 0),
+        lastScannedAt: qrCode.lastScannedAt || null,
+        unreadNotifications,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching scan summary", error);
+    return res.status(500).send({ message: error.message });
+  }
+};
+
+const getScanNotifications = async (req, res) => {
+  try {
+    const qrCode = await QRCodeModel.findOne({ user: req.user.id }).lean();
+    if (!qrCode) {
+      return res.status(200).send({
+        message: "Scan notifications fetched successfully",
+        notifications: [],
+        unreadNotifications: 0,
+      });
+    }
+
+    const requestedLimit = Number(req.query.limit || 20);
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.max(1, Math.min(requestedLimit, 100))
+      : 20;
+
+    const notifications = await ScanEventModel.find({
+      ownerUser: req.user.id,
+      qrCode: qrCode._id,
+    })
+      .populate("content", "label contentType text")
+      .sort({ scannedAt: -1 })
+      .limit(limit)
+      .lean();
+
+    const unreadNotifications = await ScanEventModel.countDocuments({
+      ownerUser: req.user.id,
+      qrCode: qrCode._id,
+      isRead: false,
+    });
+
+    const formatted = notifications.map((item) => ({
+      _id: item._id,
+      scannedAt: item.scannedAt,
+      isUniqueVisitor: Boolean(item.isUniqueVisitor),
+      isRead: Boolean(item.isRead),
+      content: item.content
+        ? {
+            _id: item.content._id,
+            label: item.content.label || "",
+            contentType: item.content.contentType || "",
+            text: item.content.text || "",
+          }
+        : null,
+      location: {
+        city: item.city || "",
+        region: item.region || "",
+        country: item.country || "",
+        timezone: item.timezone || "",
+        latitude: item.latitude,
+        longitude: item.longitude,
+      },
+      device: {
+        deviceType: item.deviceType || "desktop",
+        browser: item.browser || "Unknown",
+        os: item.os || "Unknown",
+        platform: item.platform || "",
+        locale: item.locale || "",
+      },
+      ipAddress: item.ipAddress || "",
+    }));
+
+    return res.status(200).send({
+      message: "Scan notifications fetched successfully",
+      notifications: formatted,
+      unreadNotifications,
+    });
+  } catch (error) {
+    console.error("Error fetching scan notifications", error);
+    return res.status(500).send({ message: error.message });
+  }
+};
+
+const markScanNotificationsRead = async (req, res) => {
+  try {
+    const qrCode = await QRCodeModel.findOne({ user: req.user.id }).lean();
+    if (!qrCode) {
+      return res.status(200).send({
+        message: "No notifications to update",
+      });
+    }
+
+    await ScanEventModel.updateMany(
+      {
+        ownerUser: req.user.id,
+        qrCode: qrCode._id,
+        isRead: false,
+      },
+      {
+        $set: { isRead: true },
+      }
+    );
+
+    return res.status(200).send({
+      message: "Notifications marked as read",
+    });
+  } catch (error) {
+    console.error("Error marking scan notifications as read", error);
+    return res.status(500).send({ message: error.message });
+  }
+};
+
 module.exports = {
   getContents,
   createContent,
@@ -526,4 +665,7 @@ module.exports = {
   getCurrentContentByQRCode,
   getAllContentsByQRCode,
   deleteContent,
+  getScanSummary,
+  getScanNotifications,
+  markScanNotificationsRead,
 };
