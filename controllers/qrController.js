@@ -63,7 +63,7 @@ const QRCodeModel = require("../models/QRCode");
 const QRCode = require("qrcode");
 // const { v4: uuidv4 } = require("uuid");
 const { randomUUID } = require("crypto");
-const { PutObjectCommand } = require("@aws-sdk/client-s3");
+const { DeleteObjectCommand, PutObjectCommand } = require("@aws-sdk/client-s3");
 const s3 = require("../config/s3");
 
 const buildQrDestinationUrl = (rawText, tag) => {
@@ -96,6 +96,33 @@ const buildQrDestinationUrl = (rawText, tag) => {
   return parsedUrl.toString();
 };
 
+const extractTagFromQrText = (qrText = "") => {
+  try {
+    const parsed = new URL(String(qrText));
+    const tag = parsed.searchParams.get("un");
+    return tag ? String(tag).trim() : "";
+  } catch (error) {
+    return "";
+  }
+};
+
+const uploadQrPngToS3 = async (destinationText) => {
+  const id = randomUUID();
+  const qrBuffer = await QRCode.toBuffer(destinationText);
+  const s3Key = `qr-codes/${id}.png`;
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: process.env.AWS_BUCKET_NAME,
+      Key: s3Key,
+      Body: qrBuffer,
+      ContentType: "image/png",
+      ACL: "public-read",
+    })
+  );
+  const s3Url = `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}`;
+  return { s3Key, s3Url };
+};
+
 const createQRCode = async (req, res) => {
   try {
     console.log("req.user is", req.user);
@@ -103,8 +130,6 @@ const createQRCode = async (req, res) => {
     const userId = req.user.id;
     const tag = req.user.tag;
     // const id = uuidv4();
-    const id = randomUUID();
-
     const userObjId = new mongoose.Types.ObjectId(userId);
     const findQr = await QRCodeModel.findOne({ user: userObjId });
 
@@ -117,23 +142,7 @@ const createQRCode = async (req, res) => {
     // Build QR URL with required scheme and `un` query param.
     const qrCodeURLWithUserId = buildQrDestinationUrl(text, tag);
 
-    // 1. Generate the QR Code image as a Buffer
-    const qrBuffer = await QRCode.toBuffer(qrCodeURLWithUserId);
-
-    // 2. Upload Buffer to S3
-    const s3Key = `qr-codes/${id}.png`;
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: process.env.AWS_BUCKET_NAME,
-        Key: s3Key,
-        Body: qrBuffer,
-        ContentType: "image/png",
-        ACL: "public-read",
-      })
-    );
-
-    // 3. Construct public S3 URL
-    const s3Url = `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${s3Key}`;
+    const { s3Key, s3Url } = await uploadQrPngToS3(qrCodeURLWithUserId);
 
     // 4. Save QR metadata to MongoDB
     const qrCode = new QRCodeModel({
@@ -150,6 +159,67 @@ const createQRCode = async (req, res) => {
   } catch (error) {
     console.error("Error generating QR code", error);
     res.status(500).send({ message: error.message });
+  }
+};
+
+const updateUserQR = async (req, res) => {
+  try {
+    const userObjId = new mongoose.Types.ObjectId(req.user.id);
+    const existingQr = await QRCodeModel.findOne({ user: userObjId });
+
+    if (!existingQr) {
+      return res.status(404).send({
+        status: 404,
+        message: "QR code not found for this user",
+      });
+    }
+
+    const fallbackTag = extractTagFromQrText(existingQr.text || "");
+    const resolvedTag = String(req.user.tag || fallbackTag || "").trim();
+    if (!resolvedTag) {
+      return res.status(400).send({
+        status: 400,
+        message: "Unable to resolve user tag for QR update",
+      });
+    }
+
+    const canonicalBaseUrl = "https://tq2.ai";
+    const updatedText = buildQrDestinationUrl(canonicalBaseUrl, resolvedTag);
+    const { s3Key: newS3Key, s3Url: newS3Url } = await uploadQrPngToS3(updatedText);
+
+    const oldFilePath = existingQr.filePath ? String(existingQr.filePath) : "";
+    existingQr.text = updatedText;
+    existingQr.url = newS3Url;
+    existingQr.filePath = newS3Key;
+    await existingQr.save();
+
+    if (oldFilePath && oldFilePath !== newS3Key) {
+      try {
+        await s3.send(
+          new DeleteObjectCommand({
+            Bucket: process.env.AWS_BUCKET_NAME,
+            Key: oldFilePath,
+          })
+        );
+      } catch (deleteError) {
+        const isNotFound =
+          deleteError?.name === "NoSuchKey" ||
+          deleteError?.$metadata?.httpStatusCode === 404;
+        if (!isNotFound) {
+          console.error("Failed to delete old QR image from S3:", deleteError);
+        }
+      }
+    }
+
+    return res.status(200).send({
+      message: "QR code updated successfully",
+      qrCode: existingQr,
+      qrCodeURL: newS3Url,
+      text: updatedText,
+    });
+  } catch (error) {
+    console.error("Error updating QR code", error);
+    return res.status(500).send({ message: error.message });
   }
 };
 
@@ -186,6 +256,7 @@ const getUserQR = async (req, res) => {
 
 module.exports = {
   createQRCode,
+  updateUserQR,
   getQRCode,
   getUserQR,
 };
