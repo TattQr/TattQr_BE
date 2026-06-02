@@ -66,15 +66,22 @@ const { randomUUID } = require("crypto");
 const { DeleteObjectCommand, PutObjectCommand } = require("@aws-sdk/client-s3");
 const s3 = require("../config/s3");
 
+const QR_PUBLIC_BASE_URL = process.env.QR_PUBLIC_BASE_URL || "https://tq2.ai";
+
+const normalizeQrTagForStorage = (tag) => String(tag || "").trim().toLowerCase();
+const normalizeQrTagForPayload = (tag) => String(tag || "").trim().toUpperCase();
+
+const encodeQrPathTag = (tag) =>
+  encodeURIComponent(normalizeQrTagForPayload(tag))
+    .replace(/_/g, "%5F")
+    .toUpperCase();
+
 const buildQrDestinationUrl = (rawText, tag) => {
-  if (!rawText || !String(rawText).trim()) {
-    throw new Error("QR destination URL is required");
-  }
   if (!tag || !String(tag).trim()) {
     throw new Error("User tag is required");
   }
 
-  let candidate = String(rawText).trim();
+  let candidate = String(rawText || QR_PUBLIC_BASE_URL).trim();
   if (!/^https?:\/\//i.test(candidate)) {
     candidate = `https://${candidate}`;
   }
@@ -86,21 +93,22 @@ const buildQrDestinationUrl = (rawText, tag) => {
     throw new Error("Invalid QR destination URL");
   }
 
-  parsedUrl.pathname = parsedUrl.pathname.replace(/\/m\/?$/, "/");
-  if (!parsedUrl.pathname) {
-    parsedUrl.pathname = "/";
-  }
-  parsedUrl.hash = "";
-  parsedUrl.searchParams.set("un", String(tag).trim());
-
-  return parsedUrl.toString();
+  const origin = `${parsedUrl.protocol}//${parsedUrl.host}`.toUpperCase();
+  return `${origin}/${encodeQrPathTag(tag)}`;
 };
 
 const extractTagFromQrText = (qrText = "") => {
   try {
     const parsed = new URL(String(qrText));
     const tag = parsed.searchParams.get("un");
-    return tag ? String(tag).trim() : "";
+    if (tag) {
+      return normalizeQrTagForStorage(tag);
+    }
+
+    const firstPathSegment = parsed.pathname.split("/").filter(Boolean)[0];
+    return firstPathSegment
+      ? normalizeQrTagForStorage(decodeURIComponent(firstPathSegment))
+      : "";
   } catch (error) {
     return "";
   }
@@ -108,7 +116,18 @@ const extractTagFromQrText = (qrText = "") => {
 
 const uploadQrPngToS3 = async (destinationText) => {
   const id = randomUUID();
-  const qrBuffer = await QRCode.toBuffer(destinationText);
+  const qrData = /^[0-9A-Z $%*+\-./:]+$/.test(destinationText)
+    ? [{ data: destinationText, mode: "alphanumeric" }]
+    : destinationText;
+  const qrBuffer = await QRCode.toBuffer(qrData, {
+    errorCorrectionLevel: "L",
+    margin: 4,
+    scale: 16,
+    color: {
+      dark: "#000000",
+      light: "#FFFFFF",
+    },
+  });
   const s3Key = `qr-codes/${id}.png`;
   await s3.send(
     new PutObjectCommand({
@@ -183,8 +202,7 @@ const updateUserQR = async (req, res) => {
       });
     }
 
-    const canonicalBaseUrl = "https://tq2.ai";
-    const updatedText = buildQrDestinationUrl(canonicalBaseUrl, resolvedTag);
+    const updatedText = buildQrDestinationUrl(QR_PUBLIC_BASE_URL, resolvedTag);
     const { s3Key: newS3Key, s3Url: newS3Url } = await uploadQrPngToS3(updatedText);
 
     const oldFilePath = existingQr.filePath ? String(existingQr.filePath) : "";

@@ -182,7 +182,8 @@ const checkContentAccess = async (req, res, next) => {
         return res.status(404).json({ message: "QR Code not found" });
       }
     } else if (userId) {
-      const user = await UserModel.findOne({ tag: userId });
+      const userTag = String(userId).trim().toLowerCase();
+      const user = await UserModel.findOne({ tag: userTag });
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
